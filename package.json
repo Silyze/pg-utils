@@ -1,0 +1,29 @@
+{
+  "name": "@startier/pg-utils",
+  "version": "1.0.4",
+  "description": "Utility functions for PostgreSQL",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "keywords": ["pg", "insert", "update", "query", "sql"],
+  "author": "Simeon Markoski, Mihail Mojsoski",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/pg": "^8.10.9",
+    "typescript": "^5.2.2"
+  },
+  "scripts": {
+    "watch": "npx tsc --watch",
+    "build": "npx tsc",
+    "prepare": "npm run build",
+    "version": "git add -A lib",
+    "postversion": "git push && git push --tags",
+    "start": "node dist/example.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
