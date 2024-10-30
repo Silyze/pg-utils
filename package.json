@@ -1,5 +1,5 @@
 {
-  "name": "@startier/pg-utils",
+  "name": "@silyze/pg-utils",
   "version": "1.0.4",
   "description": "Utility functions for PostgreSQL",
   "main": "dist/index.js",
