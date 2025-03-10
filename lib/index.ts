@@ -43,6 +43,7 @@ export async function insert(
     } catch (error) {
       num++;
       if (num >= 2) {
+        console.log(queryText);
         throw new ThrowError(queryText);
       }
       return insert(client, temp, tableName, returning, num);
@@ -93,6 +94,7 @@ export async function update(
     } catch (error) {
         num++;
         if (num >= 2) {
+            console.log(queryText);
             throw new ThrowError(queryText);
         }
         return update(client, temp, table, where, num);
@@ -110,6 +112,7 @@ export async function has(client: Pool, query: string, num: number = 0): Promise
     } catch (error) {
         num++;
         if (num >= 2) {
+            console.log(query);
             throw new ThrowError(query);
         }
         return has(client, query, num); // Ensure the recursive call returns a value
@@ -128,6 +131,7 @@ export async function getValue(client: Pool, query: string, num: number = 0): Pr
     } catch (error) {
         num++;
         if (num >= 2) {
+            console.log(query);
             throw new ThrowError(query);
         }
         return getValue(client, query, num); // Ensure the recursive call returns a value
