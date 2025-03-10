@@ -6,187 +6,132 @@ export class ThrowError extends Error {
     }
 }
 
-export async function insert (client: Pool, temp: any, tableName: string, returning: string[] | null = null, num: number = 0): Promise<any> {
-  for (let key of Object.keys(temp)) {
+export async function insert(
+    client: Pool,
+    temp: any,
+    tableName: string,
+    returning: string[] | null = null,
+    num: number = 0
+  ): Promise<any> {
+    // Remove keys with null or undefined values.
+    for (const key of Object.keys(temp)) {
       if (temp[key] == null) {
-          delete temp[key];
+        delete temp[key];
       }
-  }
-
-  if (Object.keys(temp).length == 0) {
+    }
+  
+    // If nothing remains to insert, return null.
+    const keys = Object.keys(temp);
+    if (keys.length === 0) {
       return null;
-  }
-
-  let keyString: string = "";
-  let valueString: string = "";
-  for (let key of Object.keys(temp)) {
-      keyString += `${key},`;
-
-      if (typeof temp[key] == "number" || typeof temp[key] == "boolean") {
-          valueString += `${temp[key]},`;
-      } else if (typeof temp[key] == "string") {
-          if (temp[key].includes("{")) {
-              valueString += `'${temp[key].replaceAll("'", "''")}',`;
-          } else {
-              valueString += `'${temp[key].replaceAll("'", "''").replaceAll("\"", "''")}',`;
-          }
-      } else if (typeof temp[key] == "object") {
-          valueString += `'{"${temp[key].join("\", \"").replaceAll("'", "''")}"}',`;
+    }
+  
+    // Build parameterized query parts.
+    const values = keys.map((key) => temp[key]);
+    const placeholders = keys.map((_, index) => `$${index + 1}`).join(", ");
+    const columns = keys.join(", ");
+  
+    // Build query text with optional RETURNING clause.
+    const returningClause = returning ? ` RETURNING ${returning.join(", ")}` : "";
+    const queryText = `INSERT INTO ${tableName} (${columns}) VALUES (${placeholders})${returningClause}`;
+  
+    const conn = await client.connect();
+  
+    try {
+      const res = await conn.query(queryText, values);
+      return res.rows;
+    } catch (error) {
+      num++;
+      if (num >= 2) {
+        throw new ThrowError(queryText);
       }
-  }
+      return insert(client, temp, tableName, returning, num);
+    } finally {
+      conn.release();
+    }
+}  
 
-  keyString = keyString.slice(0, -1);
-  valueString = valueString.slice(0, -1);
-
-  const conn = await client.connect();
-
-  let result = 0;
-
-  if (returning == null) {
-      await conn.query(`INSERT INTO ${tableName} (${keyString})
-                            VALUES (${valueString})`)
-          .then(async (res: any) => {
-              result = res.rows;
-          })
-          .catch(async (e: any) => {
-              num++;
-              if (num == 2) {
-                throw new ThrowError(`INSERT INTO ${tableName} (${keyString})
-                VALUES (${valueString})`);
-              }
-              await insert(client, temp, tableName, returning, num);
-          });
-  } else {
-      const ret = returning.toString();
-      await conn.query(`INSERT INTO ${tableName} (${keyString})
-                            VALUES (${valueString})
-                            RETURNING ${ret}`)
-          .then(async (res: any) => {
-              result = res.rows;
-          })
-          .catch(async (e: any) => {
-              num++;
-              if (num == 2) {
-                throw new ThrowError(`INSERT INTO ${tableName} (${keyString})
-                VALUES (${valueString})`);
-              }
-              await insert(client, temp, tableName, returning, num);
-          });
-  }
-
-  conn.release();
-
-  return result;
-}
-
-export async function update (client: Pool, temp: any, table: string, where: any[][], num: number = 0): Promise<void> {
-    for (let key of Object.keys(temp)) {
+export async function update(
+    client: Pool,
+    temp: any,
+    table: string,
+    where: any[][],
+    num: number = 0
+): Promise<void> {
+    // Remove keys with null or undefined values.
+    Object.keys(temp).forEach((key) => {
         if (temp[key] == null) {
             delete temp[key];
         }
-    }
-
-    if (Object.keys(temp).length == 0) {
+    });
+  
+    // If there's nothing to update, exit early.
+    if (Object.keys(temp).length === 0) {
         return;
     }
-
-    let setString: string = "";
-    for (let key of Object.keys(temp)) {
-        let value;
-        if (typeof temp[key] == "number" || typeof temp[key] == "boolean") {
-            value = temp[key];
-        } else if (typeof temp[key] == "string") {
-            if (temp[key].includes("{")) {
-                value = `'${temp[key].replaceAll("'", "''")}'`;
-            } else {
-                value = `'${temp[key].replaceAll("'", "''").replaceAll("\"", "''")}'`;
-            }
-        } else if (typeof temp[key] == "object") {
-            value = `'{"${temp[key].join("\", \"").replaceAll("'", "''")}"}'`;
-        }
-
-        setString += `${key}=${value},`;
-    }
-
-    if (setString == "") {
-        return;
-    }
-
-    setString = setString.slice(0, -1);
-
-    let whereString = "";
-    for (let arr of where) {
-        if (typeof arr[1] == "number" || typeof arr[1] == "boolean") {
-            whereString += `${arr[0]}=${arr[1]} AND `;
-        } else if (typeof arr[1] == "string") {
-            whereString += `${arr[0]}='${arr[1].replaceAll("'", "''")}' AND `;
-        } else if (typeof arr[1] == "object" && arr[1] != null) {
-            whereString += `${arr[0]}='{"${arr[1].join("\", \"").replaceAll("'", "''")}"}' AND `;
-        }
-    }
-
-    whereString = whereString.slice(0, -5);
-
+  
+    // Build the SET clause using parameterized placeholders.
+    const setKeys = Object.keys(temp);
+    const setClauses = setKeys.map((key, index) => `${key} = $${index + 1}`);
+    const setValues = setKeys.map(key => temp[key]);
+  
+    // Build the WHERE clause.
+    // Assumes each element in `where` is an array of [column, value].
+    const whereClauses = where.map((condition, i) => {
+        return `${condition[0]} = $${setValues.length + i + 1}`;
+    });
+    const whereValues = where.map(condition => condition[1]);
+  
+    // Combine SET and WHERE values.
+    const queryText = `UPDATE ${table} SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")}`;
+    const queryValues = [...setValues, ...whereValues];
+  
     const conn = await client.connect();
-
-    await conn.query(`UPDATE ${table}
-                          SET ${setString}
-                          WHERE ${whereString}`)
-        .then(async () => {
-        })
-        .catch(async (e: any) => {
-            num++;
-            if (num == 2) {
-                throw new ThrowError(`UPDATE ${table} SET ${setString} WHERE ${whereString}`);
-            }
-            await update(client, temp, table, where, num);
-        });
-
-    conn.release();
+  
+    try {
+        await conn.query(queryText, queryValues);
+    } catch (error) {
+        num++;
+        if (num >= 2) {
+            throw new ThrowError(queryText);
+        }
+        return update(client, temp, table, where, num);
+    } finally {
+        conn.release();
+    }
 }
 
-export async function has (client: Pool, query: string, num: number = 0): Promise<boolean | null> {
+export async function has(client: Pool, query: string, num: number = 0): Promise<boolean> {
     const conn = await client.connect();
 
-    let passed: any = false;
-
-    await conn
-        .query(query)
-        .then(async (res: { rows: any[]; }) =>  {
-            passed = res.rows.length > 0;
-        })
-        .catch(async(e: { stack: any; }) => {
-            num++;
-            if (num == 2) {
-                throw new ThrowError(query);
-            }
-            await has(client, query, num);
-        });
-
-    conn.release();
-
-    return passed;
+    try {
+        const res = await conn.query(query);
+        return res.rows.length > 0;
+    } catch (error) {
+        num++;
+        if (num >= 2) {
+            throw new ThrowError(query);
+        }
+        return has(client, query, num); // Ensure the recursive call returns a value
+    } finally {
+        conn.release(); // Always release the connection
+    }
 }
 
-export async function getValue (client: Pool, query: string, num: number = 0): Promise<any> {
+
+export async function getValue(client: Pool, query: string, num: number = 0): Promise<any> {
     const conn = await client.connect();
-
-    let result: any[] | null = null;
-    
-    await conn
-        .query(query)
-        .then(async (res: { rows: any[]; }) =>  {
-            result = res.rows;
-        })
-        .catch(async (e: { stack: any; }) => {
-            num++;
-            if (num == 2) {
-                throw new ThrowError(query);
-            }
-            await getValue(client, query, num);
-        });
-
-    await conn.release();
-
-    return result;
+  
+    try {
+        const res = await conn.query(query);
+        return res.rows;
+    } catch (error) {
+        num++;
+        if (num >= 2) {
+            throw new ThrowError(query);
+        }
+        return getValue(client, query, num); // Ensure the recursive call returns a value
+    } finally {
+        conn.release(); // Always release the connection
+    }
 }
