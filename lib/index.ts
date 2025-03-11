@@ -43,6 +43,7 @@ export async function insert(
     } catch (error) {
       num++;
       if (num >= 2) {
+        console.log(error);
         console.log(queryText);
         throw new ThrowError(queryText);
       }
@@ -94,6 +95,7 @@ export async function update(
     } catch (error) {
         num++;
         if (num >= 2) {
+            console.log(error);
             console.log(queryText);
             throw new ThrowError(queryText);
         }
@@ -112,6 +114,7 @@ export async function has(client: Pool, query: string, num: number = 0): Promise
     } catch (error) {
         num++;
         if (num >= 2) {
+            console.log(error);
             console.log(query);
             throw new ThrowError(query);
         }
@@ -131,6 +134,7 @@ export async function getValue(client: Pool, query: string, num: number = 0): Pr
     } catch (error) {
         num++;
         if (num >= 2) {
+            console.log(error);
             console.log(query);
             throw new ThrowError(query);
         }
@@ -166,6 +170,7 @@ export async function deleteQue(
       await conn.query(queryText, values);
     } catch (error) {
       if (retryCount >= maxRetries) {
+        console.log(error);
         throw new Error(
           `Failed to execute delete query after ${maxRetries} attempts. Query: DELETE FROM ${table} WHERE ${whereClause}. Error: ${error}`
         );
