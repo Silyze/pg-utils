@@ -139,3 +139,43 @@ export async function getValue(client: Pool, query: string, num: number = 0): Pr
         conn.release(); // Always release the connection
     }
 }
+
+export async function deleteQuery(
+    client: Pool,
+    table: string,
+    where: [string, unknown][],
+    retryCount: number = 0
+  ): Promise<void> {
+    const maxRetries = 2;
+  
+    // Build parameterized WHERE clause and collect values
+    const conditions: string[] = [];
+    const values: any[] = [];
+    where.forEach(([column, value], index) => {
+      conditions.push(`${column} = $${index + 1}`);
+      values.push(value);
+    });
+    const whereClause = conditions.join(" AND ");
+  
+    let conn;
+    try {
+      conn = await client.connect();
+      const queryText = `DELETE FROM ${table} WHERE ${whereClause}`;
+      // Optionally log the query
+      // console.log(queryText, values);
+      await conn.query(queryText, values);
+    } catch (error) {
+      if (retryCount >= maxRetries) {
+        throw new Error(
+          `Failed to execute delete query after ${maxRetries} attempts. Query: DELETE FROM ${table} WHERE ${whereClause}. Error: ${error}`
+        );
+      }
+      // Retry deletion
+      await deleteQuery(client, table, where, retryCount + 1);
+    } finally {
+      if (conn) {
+        conn.release();
+      }
+    }
+  }
+  
