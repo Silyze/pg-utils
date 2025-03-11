@@ -140,7 +140,7 @@ export async function getValue(client: Pool, query: string, num: number = 0): Pr
     }
 }
 
-export async function deleteQuery(
+export async function deleteQue(
     client: Pool,
     table: string,
     where: [string, unknown][],
@@ -171,7 +171,7 @@ export async function deleteQuery(
         );
       }
       // Retry deletion
-      await deleteQuery(client, table, where, retryCount + 1);
+      await deleteQue(client, table, where, retryCount + 1);
     } finally {
       if (conn) {
         conn.release();
